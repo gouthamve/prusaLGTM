@@ -1,8 +1,12 @@
 package main
 
 import (
+	"fmt"
+	"net/http"
+
 	"github.com/alecthomas/kong"
 	"github.com/gouthamve/prusaLGTM/cli"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -13,6 +17,9 @@ func main() {
 			Compact: true,
 			Summary: true,
 		}))
+
+	http.Handle("/metrics", promhttp.Handler())
+	go http.ListenAndServe(fmt.Sprintf(":%d", cli.PrusaLGTM.PrometheusPort), nil)
 
 	ctx.FatalIfErrorf(ctx.Run())
 }

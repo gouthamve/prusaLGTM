@@ -10,8 +10,37 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/fogleman/gg"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+var (
+	mlAPIDurationHistogram = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "prusalgtm",
+			Name:      "mlapi_request_duration_seconds",
+			Help:      "A histogram of request latencies to the ML API.",
+			Buckets:   prometheus.DefBuckets,
+		},
+		[]string{"code", "method"},
+	)
+
+	mlAPILastFailuresCount = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "prusalgtm",
+		Name:      "mlapi_last_failures_count",
+		Help:      "The number of failures detected in the last request to the ML API.",
+	})
+	mlAPILastCallSuccessTimestamp = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "prusalgtm",
+		Name:      "mlapi_last_call_success_timestamp_seconds",
+		Help:      "The timestamp of the last successful call to the ML API.",
+	})
+
+	mlAPIRoundTripper = promhttp.InstrumentRoundTripperDuration(mlAPIDurationHistogram, http.DefaultTransport)
 )
 
 type failureDetectCommand struct {
@@ -69,7 +98,11 @@ func (f *failureDetector) DetectFailure(img image.Image) (image.Image, []detecte
 	buf := bytes.NewBuffer(nil)
 	jpeg.Encode(buf, img, &jpeg.Options{Quality: 100})
 
-	resp, err := http.Post(f.MLAPIURL.String(), "image/jpeg", bytes.NewReader(buf.Bytes()))
+	client := http.DefaultClient
+	client.Timeout = 5 * time.Second
+	client.Transport = mlAPIRoundTripper
+
+	resp, err := client.Post(f.MLAPIURL.String(), "image/jpeg", bytes.NewReader(buf.Bytes()))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -102,6 +135,9 @@ func (f *failureDetector) DetectFailure(img image.Image) (image.Image, []detecte
 			BoxCoordinates: [4]float64{boxCoordinates[0].(float64), boxCoordinates[1].(float64), boxCoordinates[2].(float64), boxCoordinates[3].(float64)},
 		})
 	}
+
+	mlAPILastCallSuccessTimestamp.SetToCurrentTime()
+	mlAPILastFailuresCount.Set(float64(len(failures)))
 
 	if len(failures) == 0 {
 		return img, failures, nil

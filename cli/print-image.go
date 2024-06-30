@@ -14,6 +14,9 @@ import (
 	"github.com/disintegration/imaging"
 	"github.com/gouthamve/prusaLGTM/camera"
 	"github.com/icholy/digest"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -24,6 +27,33 @@ const (
 	ImageSize_240p  ImageSize = 240
 
 	formatString = "data:image/jpeg;base64,"
+)
+
+var (
+	promImagesLogged = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "prusalgtm",
+			Name:      "images_logged_total",
+			Help:      "The number of images logged.",
+		},
+		[]string{"pixels_size"},
+	)
+	promImagesLoggedSize = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "prusalgtm",
+		Name:      "images_logged_size_bytes",
+		Help:      "The size of the images logged.",
+		Buckets:   prometheus.DefBuckets,
+	})
+
+	promPrusaLinkDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "prusalgtm",
+			Name:      "prusalink_request_duration_seconds",
+			Help:      "A histogram of request latencies to the PrusaLink API.",
+			Buckets:   prometheus.DefBuckets,
+		},
+		[]string{"code", "method"},
+	)
 )
 
 type ImageSize int
@@ -122,6 +152,9 @@ func (p *printImage) logImages(pictures <-chan image.Image, detector *failureDet
 
 			if len(buf.Bytes()) < maxImageBytes {
 				fmt.Println(formatString + base64.StdEncoding.EncodeToString(buf.Bytes()))
+				promImagesLoggedSize.Observe(float64(len(buf.Bytes())))
+
+				promImagesLogged.WithLabelValues(fmt.Sprintf("%d", size)).Inc()
 				break
 			}
 		}
@@ -134,7 +167,6 @@ func (p *printImage) logImagesWhenPrinting(cam *camera.Camera, shouldLogImagesCh
 	isLogging := false
 
 	for shouldLog := range shouldLogImagesCh {
-
 		if shouldLog && !isLogging {
 			pictures, err := cam.Start()
 			if err != nil {
@@ -167,6 +199,7 @@ func isPrinterPrinting(prusaLinkURL *url.URL) (bool, error) {
 			Password: password,
 		},
 	}
+	client.Transport = promhttp.InstrumentRoundTripperDuration(promPrusaLinkDuration, client.Transport)
 	statusURL.User = nil
 
 	// Call the PrusaLink API to get the print status.
