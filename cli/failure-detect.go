@@ -46,7 +46,8 @@ var (
 type failureDetectCommand struct {
 	MLAPIURL string `kong:"help='The URL to the ML API to detect failures.',required,name='ml-api-url'"`
 
-	ImagePath string `kong:"help='The path to the image to detect failures in.',required,name='image-path',type='existingfile'"`
+	ImagePath  string `kong:"help='The path to the image to detect failures in.',required,name='image-path',type='existingfile'"`
+	OutputPath string `kong:"help='The path to save the image with the detected failures.',name='output-path',type='string'"`
 }
 
 func (f *failureDetectCommand) Run() error {
@@ -66,7 +67,7 @@ func (f *failureDetectCommand) Run() error {
 		return err
 	}
 
-	_, failures, err := detector.DetectFailure(img)
+	image_with_failures, failures, err := detector.DetectFailure(img)
 	if err != nil {
 		return err
 	}
@@ -75,8 +76,19 @@ func (f *failureDetectCommand) Run() error {
 		fmt.Printf("Failure detected with confidence %f at coordinates %v\n", failure.Confidence, failure.BoxCoordinates)
 	}
 
-	return nil
+	if f.OutputPath == "" {
+		return nil
+	}
 
+	outputFile, err := os.Create(f.OutputPath)
+	if err != nil {
+		return err
+	}
+
+	if err := jpeg.Encode(outputFile, image_with_failures, &jpeg.Options{Quality: 100}); err != nil {
+		return err
+	}
+	return outputFile.Close()
 }
 
 type failureDetector struct {
@@ -99,14 +111,16 @@ func (f *failureDetector) DetectFailure(img image.Image) (image.Image, []detecte
 	jpeg.Encode(buf, img, &jpeg.Options{Quality: 100})
 
 	client := http.DefaultClient
-	client.Timeout = 5 * time.Second
+	client.Timeout = 500 * time.Second
 	client.Transport = mlAPIRoundTripper
 
+	start := time.Now()
 	resp, err := client.Post(f.MLAPIURL.String(), "image/jpeg", bytes.NewReader(buf.Bytes()))
 	if err != nil {
 		return nil, nil, err
 	}
 	defer resp.Body.Close()
+	fmt.Println("ML API request took", time.Since(start))
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil, fmt.Errorf("expected status code 200, got %d", resp.StatusCode)
