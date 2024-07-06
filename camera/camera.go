@@ -1,6 +1,7 @@
 package camera
 
 import (
+	"fmt"
 	"image"
 	"time"
 
@@ -39,23 +40,25 @@ func NewCamera(cfg CameraConfig) (*Camera, error) {
 		return nil, err
 	}
 
-	return &Camera{
+	c := &Camera{
 		webcam: cam,
 		config: cfg,
-	}, nil
-}
+	}
 
-func (c *Camera) Start() (<-chan image.Image, error) {
-	_, _, _, err := c.webcam.SetImageFormat(webcam.PixelFormat(c.config.Format), c.config.FrameWidth, c.config.FrameHeight)
+	_, _, _, err = c.webcam.SetImageFormat(webcam.PixelFormat(c.config.Format), c.config.FrameWidth, c.config.FrameHeight)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error setting image format: %w", err)
 	}
 
 	err = c.webcam.SetFramerate(c.config.FrameRate)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error setting frame rate: %w", err)
 	}
 
+	return c, nil
+}
+
+func (c *Camera) Start() (<-chan image.Image, error) {
 	pictures := make(chan image.Image)
 	c.pictures = pictures
 
