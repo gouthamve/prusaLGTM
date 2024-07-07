@@ -10,7 +10,6 @@ require (
 	github.com/grafana/loki v1.6.1
 	github.com/icholy/digest v0.1.23
 	github.com/icza/mjpeg v0.0.0-20230330134156-38318e5ab8f4
-	github.com/mattn/go-mjpeg v0.0.3
 	github.com/prometheus/client_golang v1.19.1
 )
 
