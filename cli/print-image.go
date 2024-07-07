@@ -102,22 +102,23 @@ func (p *printImage) Run() error {
 	shouldLogImagesCh := make(chan bool)
 	defer close(shouldLogImagesCh)
 
-	go p.logImagesWhenPrinting(cam, shouldLogImagesCh, detector)
+	go func() {
+		// Call the PrusaLink API every 5 seconds to get the print status.
+		timer := time.NewTicker(5 * time.Second)
+		defer timer.Stop()
 
-	// Call the PrusaLink API every 5 seconds to get the print status.
-	timer := time.NewTicker(5 * time.Second)
-	defer timer.Stop()
+		for range timer.C {
+			isPrinting, err := isPrinterPrinting(p.PrusaLinkURL)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
 
-	for range timer.C {
-		isPrinting, err := isPrinterPrinting(p.PrusaLinkURL)
-		if err != nil {
-			fmt.Println(err)
-			continue
+			shouldLogImagesCh <- isPrinting
 		}
+	}()
 
-		shouldLogImagesCh <- isPrinting
-	}
-	return nil
+	return p.logImagesWhenPrinting(cam, shouldLogImagesCh, detector)
 }
 
 func (p *printImage) logImages(pictures <-chan image.Image, detector *failureDetector) error {
@@ -177,10 +178,13 @@ func (p *printImage) logImagesWhenPrinting(cam *camera.Camera, shouldLogImagesCh
 			isLogging = true
 
 			go p.logImages(pictures, detector)
-		}
 
-		if !shouldLog && isLogging {
-			cam.Stop()
+		} else if !shouldLog && isLogging {
+			if err := cam.Stop(); err != nil {
+				fmt.Println(err, "error stopping camera")
+				return err
+			}
+
 			isLogging = false
 		}
 	}
@@ -217,7 +221,7 @@ func isPrinterPrinting(prusaLinkURL *url.URL) (bool, error) {
 	if status.Printer.State == "PRINTING" || status.Printer.State == "PAUSED" || status.Printer.State == "ATTENTION" {
 		return true, nil
 	}
-	if status.Printer.State != "OPERATIONAL" && status.Printer.State != "FINISHED" {
+	if status.Printer.State != "OPERATIONAL" && status.Printer.State != "FINISHED" && status.Printer.State != "IDLE" {
 		fmt.Println(status.Printer.State, "is an unknown state.")
 	}
 
