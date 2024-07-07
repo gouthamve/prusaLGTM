@@ -1,3 +1,5 @@
 prusaLGTM
 *.jpeg
 *.jpg
+videos/
+.DS_Store
