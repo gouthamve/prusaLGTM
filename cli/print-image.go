@@ -66,7 +66,7 @@ type PrintConfig struct {
 	PrusaLinkURL *url.URL `kong:"help='The URL to PrusaLink. When provided we only log images when there is a print job ongoing.',default='',name='prusa-link-url',optional"`
 
 	// Add ML API support.
-	MLAPIURL string `kong:"help='The URL to the ML API to detect failures.',optional,name='ml-api-url'"`
+	MLAPIURL string `kong:"help='EXPERIMENTAL: The URL to the ML API to detect failures.',optional,name='ml-api-url'"`
 }
 
 type printImage struct {
