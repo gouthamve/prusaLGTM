@@ -151,8 +151,10 @@ func (p *printImage) logImages(pictures <-chan image.Image, detector *failureDet
 				return err
 			}
 
-			if len(buf.Bytes()) < maxImageBytes {
-				fmt.Println(formatString + base64.StdEncoding.EncodeToString(buf.Bytes()))
+			toPrint := formatString + base64.StdEncoding.EncodeToString(buf.Bytes())
+
+			if len(toPrint) < maxImageBytes {
+				fmt.Println(toPrint)
 				promImagesLoggedSize.Observe(float64(len(buf.Bytes())))
 
 				promImagesLogged.WithLabelValues(fmt.Sprintf("%d", size)).Inc()

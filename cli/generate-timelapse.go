@@ -120,11 +120,11 @@ func (g *generateTimelapseCommand) Run() error {
 			base64Image := strings.TrimPrefix(entry.Line, formatString)
 			imgBytes, err := base64.StdEncoding.DecodeString(base64Image)
 			if err != nil {
-				return fmt.Errorf("failed to decode base64 image: %w", err)
+				return fmt.Errorf("failed to decode base64 image. timestamp: %s, error: %w, log_size: %d", entry.Timestamp, err, len(entry.Line))
 			}
 			_, err = jpeg.Decode(bytes.NewReader(imgBytes))
 			if err != nil {
-				return fmt.Errorf("failed to decode jpeg image: %w", err)
+				return fmt.Errorf("failed to decode jpeg image. timestamp: %s, error: %w, log_size: %d", entry.Timestamp, err, len(entry.Line))
 			}
 
 			if err := timeLapse.addFrame(imgBytes); err != nil {
