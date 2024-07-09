@@ -2,6 +2,8 @@
 
 This helps monitor your Prusa printer by taking regular screenshots and storing them in [Loki](https://grafana.com/oss/loki/). This lets you visualise your prints in Grafana.
 
+![Sped up Dashboard](./docs/img/dashboard-sped-up.gif)
+
 ## Getting Started
 
 ### Prerequisites
